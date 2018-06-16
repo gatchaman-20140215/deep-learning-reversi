@@ -1,1 +1,7 @@
 __pycache__
+
+.vagrant
+
+*.so
+
+/cppreversi4/ReversiGame
