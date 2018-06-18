@@ -2,7 +2,12 @@
 
 #include <cstdint>
 #include <algorithm>
+#ifdef __GNUC__
 #include <sys/time.h>
+#endif
+#ifdef _MSC_VER
+#include <sys/timeb.h>
+#endif
 #include <string>
 #include <sstream>
 
@@ -39,9 +44,16 @@ int Util::bitCountInt8(const uint64_t paramLong) {
 }
 
 int Util::random(const int idx) {
+#ifdef __GNUC__
     struct timeval tv;
-	gettimeofday(&tv, NULL);
+    gettimeofday(&tv, NULL);
 	srand(tv.tv_sec + tv.tv_usec);
+#endif
+#ifdef __MSC_VER
+    _timeb tv;
+    _ftime(&tv);
+    srand((double)tv.time);
+#endif
 	return rand() % idx;
 }
 

@@ -1,3 +1,5 @@
+# -*- coding:UTF-8 -*-
+
 from cpp_reversi import Board
 from cpp_reversi import PlayerRandom, PlayerNegaMax, PlayerNegaScout, PlayerMonteCarlo, PlayerMonteCarloTree
 from cpp_reversi import BLACK, WHITE
@@ -9,7 +11,7 @@ import logging
 def get_player(player_str, color):
     if player_str == 'r':
         return PlayerRandom(color, 'Random')
-    elif player_str == 'n':
+    elif player_str == 'nm':
         return PlayerNegaMax(color, 'NegaMax')
     elif player_str == 'ns':
         return PlayerNegaMax(color, 'NegaScout')
@@ -20,8 +22,8 @@ def get_player(player_str, color):
 
 # 引数の定義
 parser = argparse.ArgumentParser()
-parser.add_argument('--black', '-b', type=str, default='r', choices=['r', 'n', 'mc', 'mct'], help='black player')
-parser.add_argument('--white', '-w', type=str, default='r', choices=['r', 'n', 'mc', 'mct'], help='white player')
+parser.add_argument('--black', '-b', type=str, default='r', choices=['r', 'nm', 'ns', 'mc', 'mct'], help='black player')
+parser.add_argument('--white', '-w', type=str, default='r', choices=['r', 'nm', 'ns', 'mc', 'mct'], help='white player')
 parser.add_argument('--max_depth', type=int, default=9, help='NegaMax max search depth')
 parser.add_argument('--try_num', type=int, default=3000, help='MonteCarlo max try number')
 parser.add_argument('--log', default=None, help='log file path')

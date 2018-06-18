@@ -2,6 +2,7 @@
 #include "Board.h"
 #include "Util.h"
 #include "MidEvaluator.h"
+
 #include <iomanip>
 
 using namespace std;
@@ -66,7 +67,7 @@ std::uint64_t NegaMaxAI::act(Board& board) {
     if (movables == 0)
         return 0;
 
-    const int movables_size = Util::bitCountInt8(movables);
+    int movables_size = Util::bitCountInt8(movables);
     if (movables_size == 1)
         return movables;
 
@@ -84,8 +85,7 @@ std::uint64_t NegaMaxAI::act(Board& board) {
         depth_max = normal_depth;
     }
 
-    uint64_t sorted_moves[movables_size];
-    sort(board, movables, depth_max - presearch_depth, sorted_moves, movables_size);
+    vector<uint64_t> sorted_moves = sort(board, movables, depth_max - presearch_depth, movables_size);
 
     if (is_debug)
         cout << getClassName() << "(" << evaluator->getClassName() << "), turns:" << dec << board.getTurns();
@@ -101,7 +101,7 @@ std::uint64_t NegaMaxAI::act(Board& board) {
         eval = -search(board, -beta, -alpha, 0);
         // cout << "depth_max:" << depth_max
         //     << ",move:" << Util::pointStr(next_hand, BOARD_SIZE) << ", eval:" << dec << eval << endl;
-        //cout << board.str() << endl;
+        // cout << board.str() << endl;
         board.undo();
 
         if (eval > alpha) {
@@ -121,8 +121,9 @@ std::uint64_t NegaMaxAI::act(Board& board) {
     return best;
 }
 
-void NegaMaxAI::sort(Board& board, uint64_t movables, int depth, uint64_t sorted_moves[], const int movables_size) {
+std::vector<std::uint64_t> NegaMaxAI::sort(Board& board, uint64_t movables, int depth, const int movables_size) {
     vector<Move> moves;
+    vector<uint64_t> sorted_moves(movables_size);
 
     int eval;
     uint64_t next_hand;
@@ -145,7 +146,7 @@ void NegaMaxAI::sort(Board& board, uint64_t movables, int depth, uint64_t sorted
         sorted_moves[i] = moves[i].point;
     }
 
-    return;
+    return sorted_moves;
 }
 
 int NegaMaxAI::search(Board& board, int alpha, int beta, int depth) {
@@ -229,14 +230,13 @@ std::uint64_t NegaScoutAI::act(Board& board) {
     if (movables == 0)
         return 0;
 
-    const int movables_size = Util::bitCountInt8(movables);
+    int movables_size = Util::bitCountInt8(movables);
     if (movables_size == 1)
         return movables;
 
     int limit;
     evaluator = new MidEvaluator();
-    uint64_t sorted_moves[movables_size];
-    sort(board, movables, presearch_depth, sorted_moves, movables_size);
+    vector<uint64_t> sorted_moves = sort(board, movables, presearch_depth, movables_size);
 
     int emptyNum = board.countEmpty();
     if (emptyNum <= wld_depth) {
@@ -281,8 +281,9 @@ std::uint64_t NegaScoutAI::act(Board& board) {
     return best;
 }
 
-void NegaScoutAI::sort(Board& board, uint64_t movables, int limit, uint64_t sorted_moves[], const int movables_size) {
+vector<uint64_t> NegaScoutAI::sort(Board& board, uint64_t movables, int limit, const int movables_size) {
     vector<Move> moves;
+    vector<uint64_t> sorted_moves(movables_size);
 
     int eval;
     uint64_t next_hand;
@@ -305,7 +306,7 @@ void NegaScoutAI::sort(Board& board, uint64_t movables, int limit, uint64_t sort
         sorted_moves[i] = moves[i].point;
     }
 
-    return;
+    return sorted_moves;
 }
 
 int NegaScoutAI::negaScout(Board& board, int limit, int alpha, int beta) {

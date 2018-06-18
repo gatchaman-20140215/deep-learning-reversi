@@ -1,8 +1,10 @@
 #include "Board.h"
+
 #include <iostream>
 #include <sstream>
 #include <cstdint>
 #include <iomanip>
+#include <set>
 
 Board::Board() {
     position.resize(2);
@@ -203,26 +205,29 @@ std::vector<std::uint64_t> Board::generateHashKey() const {
 }
 
 std::string Board::str() const {
+    // std::string str(u8"こんにちは");
+    // return str;
+
     int i;
     std::uint64_t pos = 0x8000000000000000ULL;
     std::stringstream ss;
 
     if (currentColor == BLACK) {
-        ss << "turn: ●" << std::endl;
+        ss << u8"turn: ●" << std::endl;
     } else if (currentColor == WHITE) {
-        ss << "turn: ○" << std::endl;
+        ss << u8"turn: ○" << std::endl;
     }
-    ss << "  a b c d e f g h " << std::endl;
+    ss << u8"  a b c d e f g h " << std::endl;
     for (i = 1; i <= BOARD_SIZE * BOARD_SIZE; i++) {
         if (i % BOARD_SIZE == 1)
             ss << i / BOARD_SIZE + 1;
 
         if ((position[BLACK] & pos) != 0) {
-            ss << "●";
+            ss << u8"●";
         } else if ((position[WHITE] & pos) != 0) {
-            ss << "○";
+            ss << u8"○";
         } else {
-            ss << "　";
+            ss << u8"　";
         }
 
         if (i % BOARD_SIZE == 0)

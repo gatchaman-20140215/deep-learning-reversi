@@ -18,21 +18,17 @@ PYBIND11_MODULE(cpp_reversi, m) {
     py::class_<Board> board(m, "Board");
     board
         .def(py::init<>())
-        .def(py::init<std::uint16_t, std::uint16_t, Color>())
+        .def(py::init<std::uint64_t, std::uint64_t, Color>())
         .def_readonly("position", &Board::position)
         .def_readonly("turns", &Board::turns)
         .def_readonly("current_color", &Board::currentColor)
         .def_readonly("movable_pos", &Board::movablePos)
-        .def("move", (bool (Board::*)(const std::uint16_t)) &Board::move)
+        .def("move", (bool (Board::*)(const std::uint64_t)) &Board::move)
         .def("skip", &Board::pass)
         .def("undo", &Board::undo)
         .def("is_game_over", &Board::isGameOver)
         .def("hash_key", &Board::generateHashKey)
         .def("count_disc", &Board::countDisc)
-        //.def("movable_pos", &Board::getMovablePos)
-        //.def("current_color", &Board::getCurrentColor)
-        // .def("turns", &Board::getTurns)
-        // .def("position", (std::uint16_t (Board::*)(const Color)) &Board::getPosition)
         .def("empty", &Board::getEmpty)
         .def("count_empty", &Board::countEmpty)
         .def("to_string", &Board::str)
@@ -49,20 +45,28 @@ PYBIND11_MODULE(cpp_reversi, m) {
         .def("get_class_name", &AI::getClassName)
         .def("debug", &AI::debug);
 
-    py::class_<RandomAI> random_ai(m, "RandomAI");
+    py::class_<RandomAI> random_ai(m, "RandomAI", ai);
     random_ai
         .def(py::init<>());
 
-    py::class_<NegaMaxAI> negamax_ai(m, "NegaMaxAI");
+    py::class_<NegaMaxAI> negamax_ai(m, "NegaMaxAI", ai);
     negamax_ai
-        .def(py::init<>());
+        .def(py::init<>())
+        .def(py::init<int>())
+        .def(py::init<int, int, int>());
 
-    py::class_<MonteCarloAI> montecarlo_ai(m, "MonteCarloAI");
+    py::class_<NegaScoutAI> negascout_ai(m, "NegaScoutAI", ai);
+    negascout_ai
+        .def(py::init<>())
+        .def(py::init<int>())
+        .def(py::init<int, int, int>());
+
+    py::class_<MonteCarloAI> montecarlo_ai(m, "MonteCarloAI", ai);
     montecarlo_ai
         .def(py::init<>())
         .def(py::init<int>());
 
-    py::class_<MonteCarloTreeAI> montecarlo_tree_ai(m, "MonteCarloTreeAI");
+    py::class_<MonteCarloTreeAI> montecarlo_tree_ai(m, "MonteCarloTreeAI", ai);
     montecarlo_tree_ai
         .def(py::init<>())
         .def(py::init<int, double, int>());

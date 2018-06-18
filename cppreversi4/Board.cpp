@@ -209,21 +209,21 @@ std::string Board::str() const {
     std::stringstream ss;
 
     if (currentColor == BLACK) {
-        ss << "turn: 黒" << std::endl;
+        ss << u8"turn: ●" << std::endl;
     } else if (currentColor == WHITE) {
-        ss << "turn: 白" << std::endl;
+        ss << u8"turn: ○" << std::endl;
     }
-    ss << "  a b c d " << std::endl;
+    ss << u8"  a b c d " << std::endl;
     for (i = 1; i <= BOARD_SIZE * BOARD_SIZE; i++) {
         if (i % BOARD_SIZE == 1)
             ss << i / BOARD_SIZE + 1;
 
         if ((position[BLACK] & pos) != 0) {
-            ss << "●";
+            ss << u8"●";
         } else if ((position[WHITE] & pos) != 0) {
-            ss << "○";
+            ss << u8"○";
         } else {
-            ss << "　";
+            ss << u8"　";
         }
 
         if (i % BOARD_SIZE == 0)

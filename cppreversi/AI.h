@@ -52,7 +52,7 @@ public:
     }
 
 private:
-    void sort(Board& board, std::uint64_t movables, int limit, std::uint64_t sorted_moves[], const int movables_size);
+    std::vector<std::uint64_t> sort(Board& board, std::uint64_t movables, int limit, const int movables_size);
     int search(Board& board, int alpha, int beta, int depth);
 
     int presearch_depth;
@@ -106,7 +106,7 @@ public:
     }
 
 private:
-    void sort(Board& board, std::uint64_t movables, int limit, std::uint64_t sorted_moves[], const int movables_size);
+    std::vector<std::uint64_t> sort(Board& board, std::uint64_t movables, int limit, const int movables_size);
     int negaScout(Board& board, int limit, int alpha, int beta);
 
     int presearch_depth;

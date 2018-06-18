@@ -1,3 +1,5 @@
+# -*- coding:UTF-8 -*-
+
 from cpp_reversi4 import Board
 from cpp_reversi4 import PlayerRandom, PlayerNegaMax, PlayerMonteCarlo, PlayerMonteCarloTree
 from cpp_reversi4 import BLACK, WHITE
