@@ -13,6 +13,7 @@ class Handler(SimpleHTTPRequestHandler):
     POINT_DICT = dict([(v, w) for (v, w) in zip(
         reversed([(1 << i) for i in range(64)]),
         [{'x': x, 'y': y} for y in range(8) for x in range(8)])])
+    POINT_DICT[0] = {'x': -1, 'y': -1}
 
     def move(self, kyokumen):
         black, white = 0, 0
@@ -52,8 +53,7 @@ class Handler(SimpleHTTPRequestHandler):
             ai.debug(args.debug)
             best = ai.act(board)
 
-        logging.info('best:{}, moves:{}, {}'.format(
-            self.POINT_DICT[best], kyokumen['moves'], '' if board.count_empty() > args.wld_depth else 'endgame'))
+        logging.info('best:{}, moves:{}'.format(self.POINT_DICT[best], kyokumen['moves']))
 
         if best != 0:
             return kyokumen['moves'].index(self.POINT_DICT[best])
