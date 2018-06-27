@@ -3,6 +3,8 @@ __pycache__
 .vagrant
 
 *.so
+*.npz
+*.log
 
 /cppreversi/ReversiGame
 /cppreversi4/ReversiGame

@@ -8,6 +8,8 @@ import math
 import argparse
 import logging
 
+import numpy as np
+
 def get_player(player_str, color):
     if player_str == 'r':
         return PlayerRandom(color, 'Random')
@@ -46,6 +48,7 @@ print(board.to_string())
 while not board.is_game_over():
     players[turn].act(board)
     print(board.to_string())
+    print(np.array(board.convert_nn()))
     turn ^= 1
 
 logging.info('winner:{}'.format(board.winner()))

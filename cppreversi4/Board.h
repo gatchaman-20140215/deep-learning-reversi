@@ -17,6 +17,9 @@ public:
 
     };
 
+    // 盤面を初期化する。
+    void init();
+
     // pointで指定された位置に石を打つ。
     bool move(const std::uint16_t point);
     // パスする。
@@ -130,6 +133,9 @@ public:
     Color currentColor;
     // 打てる場所
     std::uint16_t movablePos;
+
+    // ニューラルネット用フォーマットへの変換
+    std::vector<std::vector<std::vector<double>>> convertNN() const;
 
 private:
     static const std::uint16_t MASK_EDGE		= 0x0660;

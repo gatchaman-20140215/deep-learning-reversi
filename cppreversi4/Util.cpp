@@ -7,6 +7,7 @@
 #endif
 #ifdef _MSC_VER
 #include <sys/timeb.h>
+#include <windows.h>
 #endif
 #include <string>
 #include <sstream>
@@ -41,10 +42,13 @@ int Util::random(const int idx) {
     gettimeofday(&tv, NULL);
 	srand(tv.tv_sec + tv.tv_usec);
 #endif
-#ifdef __MSC_VER
-    _timeb tv;
-    _ftime(&tv);
-    srand((double)tv.time);
+#ifdef _MSC_VER
+    LARGE_INTEGER frequency;
+    QueryPerformanceCounter(&frequency);
+    // _timeb tv;
+    // _ftime(&tv);
+    // double seed = (double)tv.time + (double)tv.millitm / 1000.0;
+    srand((unsigned) frequency.QuadPart);
 #endif
 	return rand() % idx;
 }

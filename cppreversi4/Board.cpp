@@ -43,6 +43,25 @@ Board::Board(const std::uint16_t black, const std::uint16_t white, const Color c
     pS->movablePos = movablePos;
 }
 
+void Board::init() {
+    position.resize(2);
+    position[BLACK] = 0x0240;
+    position[WHITE] = 0x0420;
+
+    turns = 0;
+    currentColor = BLACK;
+    movablePos = generateLeagal(currentColor);
+
+    history_index = 0;
+    Situation *pS = &history[history_index];
+    pS->position[BLACK] = position[BLACK];
+    pS->position[WHITE] = position[WHITE];
+    pS->move = 0;
+    pS->currentColor = currentColor;
+    pS->turns = turns;
+    pS->movablePos = movablePos;
+}
+
 bool Board::move(const std::uint16_t point) {
     if (point == 0)
         return pass();
@@ -233,7 +252,7 @@ std::string Board::str() const {
     }
     ss << "0x" << std::setfill('0') << std::setw(4) << hex << position[BLACK] <<
         ", 0x" << std::setfill('0') << std::setw(4) << position[WHITE] << std::endl;
-    ss << "----------------" << std::endl;
+    ss << "----------------";
     return ss.str();
 }
 
@@ -367,4 +386,34 @@ int Board::winner() const {
         return WHITE;
     else
         return DRAW;
+}
+
+std::vector<std::vector<std::vector<double>>> Board::convertNN() const {
+    std::vector<std::vector<std::vector<double>>> boardNN;
+    boardNN = std::vector<std::vector<std::vector<double>>>(
+        5, std::vector<std::vector<double>>(BOARD_SIZE, std::vector<double>(BOARD_SIZE, 0.0)));
+    std::uint16_t mask = 0x8000;
+    Color self = currentColor == BLACK ? BLACK : WHITE;
+    Color enemy = currentColor == BLACK ? WHITE : BLACK;
+
+    for (int y = 0; y < BOARD_SIZE; y++) {
+        for (int x = 0; x < BOARD_SIZE; x++) {
+            if ((position[BLACK] & mask) != 0)
+                boardNN[0][y][x] = 1.0;
+            else if ((position[WHITE] & mask) != 0)
+                boardNN[1][y][x] = 1.0;
+
+            if ((movablePos & mask) != 0)
+                boardNN[2][y][x] = 1.0;
+
+            if (currentColor == BLACK)
+                boardNN[3][y][x] = 1.0;
+            else if (currentColor == WHITE)
+                boardNN[4][y][x] = 1.0;
+
+            mask = mask >> 1;
+        }
+    }
+
+    return boardNN;
 }

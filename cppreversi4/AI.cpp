@@ -275,6 +275,7 @@ std::uint16_t MonteCarloTreeAI::act(Board& board) {
 
     node.shrink_to_fit();
     node_idx = 0;
+    node_num = 0;
     return best;
 }
 
