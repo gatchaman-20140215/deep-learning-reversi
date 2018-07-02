@@ -393,8 +393,6 @@ std::vector<std::vector<std::vector<double>>> Board::convertNN() const {
     boardNN = std::vector<std::vector<std::vector<double>>>(
         5, std::vector<std::vector<double>>(BOARD_SIZE, std::vector<double>(BOARD_SIZE, 0.0)));
     std::uint16_t mask = 0x8000;
-    Color self = currentColor == BLACK ? BLACK : WHITE;
-    Color enemy = currentColor == BLACK ? WHITE : BLACK;
 
     for (int y = 0; y < BOARD_SIZE; y++) {
         for (int x = 0; x < BOARD_SIZE; x++) {
