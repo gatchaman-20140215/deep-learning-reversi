@@ -16,17 +16,25 @@ from chainer import computational_graph as c
 import numpy as np
 
 mask = 0x8000
-IDX_TO_POS = {0: 0}
-POS_TO_IDX = {0: 0}
+IDX_TO_POS = {}
+POS_TO_IDX = {}
 for i in range(16):
-    IDX_TO_POS[i + 1] = mask
-    POS_TO_IDX[mask] = i + 1
+    IDX_TO_POS[i] = mask
+    POS_TO_IDX[mask] = i
     mask = mask >> 1
 
 class PyBoard(Board):
     def state(self):
         # return (self.current_color << 32) + (self.position[BLACK] << 16) + self.position[WHITE]
-        return (self.position[self.current_color] << 16) + self.position[self.current_color ^ 1]
+        # return (self.position[self.current_color] << 16) + self.position[self.current_color ^ 1]
+        # return (self.position[BLACK] << 16) | self.position[WHITE]
+        return ((self.current_color << 32) | self.position[BLACK] << 16) | self.position[WHITE]
+
+    def convert_nn(self):
+        if args.network == 'nn':
+            return list('{:033b}'.format(self.state()))
+        else:
+            return super().convert_nn()
 
     def acts(self):
         movable_pos = self.movable_pos
@@ -97,7 +105,7 @@ class GameOrganizer:
                 else:
                     # self.switch_player()
                     turn ^= 1
-                    self.players[turn].get_game_result(board, missed=False, last_move=POS_TO_IDX[act])
+                    self.players[turn].get_game_result(board, missed=False)
 
             self.num_played += 1
             if self.num_played % self.stat == 0 or self.num_played == self.num_play:
@@ -217,6 +225,9 @@ class PlayerQL:
         return self.policy(board)
 
     def policy(self, board):
+        if board.movable_pos == 0:
+            return 0
+
         self.last_board = PyBoard()
         self.last_board.copy(board)
 
@@ -245,13 +256,12 @@ class PlayerQL:
             self.q[(state, act)] = 1
         return self.q.get((state, act))
 
-    def get_game_result(self, board, missed, last_move=None):
+    def get_game_result(self, board, missed):
         if self.last_move is None:
             return
 
         if board.winner() == NONE:
             self.learn(self.last_board, self.last_move, 0, board)
-            # self.last_move = last_move
         else:
             if board.winner() == self.current_color:
                 self.learn(self.last_board, self.last_move, 1, board)
@@ -285,6 +295,24 @@ class PlayerQL:
             b = PyBoard(black, white, board.current_color)
             self.q[(b.state(), a)] = q
 
+class NN(chainer.Chain):
+    def __init__(self):
+        super(NN, self).__init__()
+        with self.init_scope():
+            self.l1 = L.Linear(33, 96)
+            self.l2 = L.Linear(96, 96)
+            self.l3 = L.Linear(96, 16)
+
+    def __call__(self, x, t=None, train=False):
+        h1 = F.leaky_relu(self.l1(x))
+        h2 = F.leaky_relu(self.l2(h1))
+        h3 = F.leaky_relu(self.l3(h2))
+
+        if train:
+            return F.mean_squared_error(h3, t)
+        else:
+            return h3
+
 class CNN(chainer.Chain):
     def __init__(self):
         super(CNN, self).__init__()
@@ -293,7 +321,7 @@ class CNN(chainer.Chain):
             self.cn2 = L.Convolution2D(in_channels=32, out_channels=32, ksize=3, pad=1)
             self.cn3 = L.Convolution2D(in_channels=32, out_channels=32, ksize=3, pad=1)
             self.l1 = L.Linear(32, 96)
-            self.l2 = L.Linear(96, 17)
+            self.l2 = L.Linear(96, 16)
 
     def __call__(self, x, t=None, train=False):
         h1 = F.max_pooling_2d(F.relu(self.cn1(x)), 2)
@@ -312,7 +340,10 @@ class PlayerDQN:
         self.name = name
         self.my_color = color
         self.current_color = color
-        self.model = CNN()
+        if args.network == 'nn':
+            self.model = NN()
+        else:
+            self.model = CNN()
         self.optimizer = optimizers.SGD()
         self.optimizer.setup(self.model)
         self.e = e
@@ -320,20 +351,18 @@ class PlayerDQN:
         self.disp_pred = disp_pred
         self.last_move = None
         self.last_board = None
-        self.last_pred = None
+        # self.last_pred = None
         self.total_game_count = 0
         self.reward_win, self.reward_lose, self.reward_draw, self.reward_miss = 1, -1, 0, -1.5
         self.random_ai = RandomAI()
         self.random_ai.debug(False)
 
     def act(self, board):
+        if board.movable_pos == 0:
+            return 0
+
         self.last_board = PyBoard()
         self.last_board.copy(board)
-
-        x = np.array([board.convert_nn()], dtype=np.float32).astype(np.float32)
-        pred = self.model(x)
-        logging.debug(pred.data)
-        self.last_pred = pred.data[0, :]
 
         if self.e > 0.2:    # decrement epsilon over time
             self.e -= 1 / 20000
@@ -342,6 +371,10 @@ class PlayerDQN:
             self.last_move = POS_TO_IDX[act]
             return act
 
+        x = np.array([board.convert_nn()], dtype=np.float32).astype(np.float32)
+        pred = self.model(x)
+        # logging.debug(pred.data)
+        # self.last_pred = pred.data[0, :]
         act = np.argmax(pred.data, axis=1)[0]
         i = 0
         while (IDX_TO_POS[act] & board.movable_pos) == 0:
@@ -352,12 +385,12 @@ class PlayerDQN:
             i += 1
             if i > 10:
                 logging.debug('Exceed Pos Fild {} with {}'.format(board.to_string(), act))
-                return self.random_ai.act(board)
+                act = POS_TO_IDX[self.random_ai.act(board)]
 
         self.last_move = act
         return IDX_TO_POS[act]
 
-    def get_game_result(self, board, missed, last_move=None):
+    def get_game_result(self, board, missed):
         if self.last_move is None:
             return
 
@@ -367,7 +400,7 @@ class PlayerDQN:
             self.total_game_count += 1
             self.last_move = None
             self.last_board = None
-            self.last_pred = None
+            # self.last_pred = None
             return
 
         if board.winner() == NONE:
@@ -384,7 +417,7 @@ class PlayerDQN:
             self.total_game_count += 1
             self.last_move = None
             self.last_board = None
-            self.last_pred = None
+            # self.last_pred = None
 
     def learn(self, last_board, act, reward, board):
         if board.winner() != NONE or board.movable_pos == 0:
@@ -395,19 +428,19 @@ class PlayerDQN:
         update = reward + self.gamma * max_q_new
         logging.debug('Prev Board:{}, act:{}, Next Board:{}, Get Reward:{}, Update:{}'.format(
             last_board.to_string(), act, board.to_string(), reward, update))
-        logging.debug('prev:{}'.format(self.last_pred))
+        # logging.debug('prev:{}'.format(self.last_pred))
         # self.last_pred[act] = update
 
-        acts = []
+        acts = [act]
         x = np.array([last_board.convert_nn()], dtype=np.float32).astype(np.float32)
-        for black, white, a in Board.rotate_position((*last_board.position, IDX_TO_POS[act])):
-            b = PyBoard(black, white, last_board.current_color)
-            x = np.append(x, np.array([b.convert_nn()], dtype=np.float32).astype(np.float32), axis=0)
-            acts.append(a)
+        # for black, white, a in Board.rotate_position((*last_board.position, IDX_TO_POS[act])):
+        #     b = PyBoard(black, white, last_board.current_color)
+        #     x = np.append(x, np.array([b.convert_nn()], dtype=np.float32).astype(np.float32), axis=0)
+        #     acts.append(POS_TO_IDX[a])
 
         pred = self.model(x).data
         for i, a in enumerate(acts):
-            pred[i][act] = update
+            pred[i][a] = update
 
         t = np.array(pred, dtype=np.float32).astype(np.float32)
         self.model.zerograds()
@@ -428,6 +461,7 @@ if __name__ == '__main__':
     parser.add_argument('--show_result', action='store_true', help='shows the results')
     parser.add_argument('--stat', type=int, default=100, help='the dulation of showing stats')
     parser.add_argument('--num_play', type=int, default=10, help='the number of play')
+    parser.add_argument('--network', type=str, default='nn', choices=['nn', 'cnn'], help='neural network type')
     parser.add_argument('--log', type=str, default=None, help='log file path')
     parser.add_argument('--log_level', type=str, default='info', choices=['debug', 'info'], help='log level')
     args = parser.parse_args()
