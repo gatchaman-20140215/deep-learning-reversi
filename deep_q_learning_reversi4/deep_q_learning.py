@@ -8,6 +8,13 @@ import argparse
 import logging
 from time import sleep
 
+import chainer
+from chainer import Function, gradient_check, Variable, optimizers, serializers, utils
+import chainer.functions as F
+import chainer.links as L
+from chainer import computational_graph as c
+import numpy as np
+
 mask = 0x8000
 IDX_TO_POS = {0: 0}
 POS_TO_IDX = {0: 0}
@@ -90,7 +97,7 @@ class GameOrganizer:
                 else:
                     # self.switch_player()
                     turn ^= 1
-                    self.players[turn].get_game_result(board, missed=False, last_move=act)
+                    self.players[turn].get_game_result(board, missed=False, last_move=POS_TO_IDX[act])
 
             self.num_played += 1
             if self.num_played % self.stat == 0 or self.num_played == self.num_play:
@@ -244,8 +251,7 @@ class PlayerQL:
 
         if board.winner() == NONE:
             self.learn(self.last_board, self.last_move, 0, board)
-            self.last_move = last_move
-            self.last_board = board
+            # self.last_move = last_move
         else:
             if board.winner() == self.current_color:
                 self.learn(self.last_board, self.last_move, 1, board)
@@ -279,11 +285,145 @@ class PlayerQL:
             b = PyBoard(black, white, board.current_color)
             self.q[(b.state(), a)] = q
 
+class CNN(chainer.Chain):
+    def __init__(self):
+        super(CNN, self).__init__()
+        with self.init_scope():
+            self.cn1 = L.Convolution2D(in_channels=5, out_channels=32, ksize=3, pad=1)
+            self.cn2 = L.Convolution2D(in_channels=32, out_channels=32, ksize=3, pad=1)
+            self.cn3 = L.Convolution2D(in_channels=32, out_channels=32, ksize=3, pad=1)
+            self.l1 = L.Linear(32, 96)
+            self.l2 = L.Linear(96, 17)
+
+    def __call__(self, x, t=None, train=False):
+        h1 = F.max_pooling_2d(F.relu(self.cn1(x)), 2)
+        h2 = F.max_pooling_2d(F.relu(self.cn2(h1)), 2)
+        h3 = F.max_pooling_2d(F.relu(self.cn3(h2)), 2)
+        h4 = F.relu(self.l1(h3))
+        h5 = self.l2(h4)
+
+        if train:
+            return F.mean_squared_error(h5, t)
+        else:
+            return h5
+
+class PlayerDQN:
+    def __init__(self, color, name='DQN', e=1, disp_pred=False):
+        self.name = name
+        self.my_color = color
+        self.current_color = color
+        self.model = CNN()
+        self.optimizer = optimizers.SGD()
+        self.optimizer.setup(self.model)
+        self.e = e
+        self.gamma = 0.95
+        self.disp_pred = disp_pred
+        self.last_move = None
+        self.last_board = None
+        self.last_pred = None
+        self.total_game_count = 0
+        self.reward_win, self.reward_lose, self.reward_draw, self.reward_miss = 1, -1, 0, -1.5
+        self.random_ai = RandomAI()
+        self.random_ai.debug(False)
+
+    def act(self, board):
+        self.last_board = PyBoard()
+        self.last_board.copy(board)
+
+        x = np.array([board.convert_nn()], dtype=np.float32).astype(np.float32)
+        pred = self.model(x)
+        logging.debug(pred.data)
+        self.last_pred = pred.data[0, :]
+
+        if self.e > 0.2:    # decrement epsilon over time
+            self.e -= 1 / 20000
+        if random.random() < self.e:
+            act = self.random_ai.act(board)
+            self.last_move = POS_TO_IDX[act]
+            return act
+
+        act = np.argmax(pred.data, axis=1)[0]
+        i = 0
+        while (IDX_TO_POS[act] & board.movable_pos) == 0:
+            self.learn(self.last_board, act, self.reward_miss, self.last_board)
+            pred = self.model(x)
+            logging.debug(pred.data)
+            act = np.argmax(pred.data, axis=1)[0]
+            i += 1
+            if i > 10:
+                logging.debug('Exceed Pos Fild {} with {}'.format(board.to_string(), act))
+                return self.random_ai.act(board)
+
+        self.last_move = act
+        return IDX_TO_POS[act]
+
+    def get_game_result(self, board, missed, last_move=None):
+        if self.last_move is None:
+            return
+
+        if missed:
+            self.learn(self.last_board, self.last_move, self.reward_miss, board)
+
+            self.total_game_count += 1
+            self.last_move = None
+            self.last_board = None
+            self.last_pred = None
+            return
+
+        if board.winner() == NONE:
+            self.learn(self.last_board, self.last_move, 0, board)
+            # self.last_move = last_move
+        else:
+            if board.winner() == self.current_color:
+                self.learn(self.last_board, self.last_move, self.reward_win, board)
+            elif board.winner() == self.current_color ^ 1:
+                self.learn(self.last_board, self.last_move, self.reward_lose, board)
+            else:
+                self.learn(self.last_board, self.last_move, self.reward_draw, board)
+
+            self.total_game_count += 1
+            self.last_move = None
+            self.last_board = None
+            self.last_pred = None
+
+    def learn(self, last_board, act, reward, board):
+        if board.winner() != NONE or board.movable_pos == 0:
+            max_q_new = 0
+        else:
+            x = np.array([board.convert_nn()], dtype=np.float32).astype(np.float32)
+            max_q_new = np.max(self.model(x).data[0])
+        update = reward + self.gamma * max_q_new
+        logging.debug('Prev Board:{}, act:{}, Next Board:{}, Get Reward:{}, Update:{}'.format(
+            last_board.to_string(), act, board.to_string(), reward, update))
+        logging.debug('prev:{}'.format(self.last_pred))
+        # self.last_pred[act] = update
+
+        acts = []
+        x = np.array([last_board.convert_nn()], dtype=np.float32).astype(np.float32)
+        for black, white, a in Board.rotate_position((*last_board.position, IDX_TO_POS[act])):
+            b = PyBoard(black, white, last_board.current_color)
+            x = np.append(x, np.array([b.convert_nn()], dtype=np.float32).astype(np.float32), axis=0)
+            acts.append(a)
+
+        pred = self.model(x).data
+        for i, a in enumerate(acts):
+            pred[i][act] = update
+
+        t = np.array(pred, dtype=np.float32).astype(np.float32)
+        self.model.zerograds()
+        loss = self.model(x, t, train=True)
+        loss.backward()
+        self.optimizer.update()
+        # logging.debug('Updated:{}'.format(self.model(x).data))
+        # logging.debug('{} with {} is updated from {} refs MAXQ={}:{}'.format(board.to_string(), act, p_q, max_q_new, reward))
+        # logging.debug(self.q)
+
+
 if __name__ == '__main__':
     # コマンドライン引数の定義
     parser = argparse.ArgumentParser()
-    parser.add_argument('--black', '-b', type=str, default='r', choices=['r', 'n', 'mct', 'h', 'q'], help='black player')
-    parser.add_argument('--white', '-w', type=str, default='r', choices=['r', 'n', 'mct', 'h', 'q'], help='white player')
+    parser.add_argument('--black', '-b', type=str, default='r', choices=['r', 'n', 'mct', 'h', 'q', 'dq'], help='black player')
+    parser.add_argument('--white', '-w', type=str, default='r', choices=['r', 'n', 'mct', 'h', 'q', 'dq'], help='white player')
     parser.add_argument('--show_board', action='store_true', help='shows the boards')
     parser.add_argument('--show_result', action='store_true', help='shows the results')
     parser.add_argument('--stat', type=int, default=100, help='the dulation of showing stats')
@@ -311,6 +451,8 @@ if __name__ == '__main__':
         p1 = PlayerHuman(BLACK, 'Human Black')
     elif args.black == 'q':
         p1 = PlayerQL(BLACK, 'Q Learning Black')
+    elif args.black == 'dq':
+        p1 = PlayerDQN(BLACK, 'deep Q Network Black')
 
     if args.white == 'r':
         p2 = PlayerRandom(WHITE, 'Random White')
@@ -322,6 +464,8 @@ if __name__ == '__main__':
         p2 = PlayerHuman(WHITE, 'Human White')
     elif args.white == 'q':
         p2 = PlayerQL(WHITE, 'Q Learning White')
+    elif args.white == 'dq':
+        p2 = PlayerDQN(WHITE, 'deep Q Network Black')
 
     # 学習
     game = GameOrganizer(p1, p2, args.num_play, show_board=args.show_board, show_result=args.show_result, stat=args.stat)
