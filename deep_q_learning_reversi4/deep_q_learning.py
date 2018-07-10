@@ -324,10 +324,10 @@ class CNN(chainer.Chain):
             self.l2 = L.Linear(96, 16)
 
     def __call__(self, x, t=None, train=False):
-        h1 = F.max_pooling_2d(F.relu(self.cn1(x)), 2)
-        h2 = F.max_pooling_2d(F.relu(self.cn2(h1)), 2)
-        h3 = F.max_pooling_2d(F.relu(self.cn3(h2)), 2)
-        h4 = F.relu(self.l1(h3))
+        h1 = F.max_pooling_2d(F.leaky_relu(self.cn1(x)), 2)
+        h2 = F.max_pooling_2d(F.leaky_relu(self.cn2(h1)), 2)
+        h3 = F.max_pooling_2d(F.leaky_relu(self.cn3(h2)), 2)
+        h4 = F.leaky_relu(self.l1(h3))
         h5 = self.l2(h4)
 
         if train:
